@@ -223,8 +223,13 @@ def generate(prompt: mx.array, model: Model, temp: float = 0.0):
         y = sample(logits)
         yield y
 
+def add_noise(model: Model, sigma: float = 1e-5):
+    for h in model.transformer.h:
+        weight = h.moe.gate.weight
+        h.moe.gate.weight += sigma*mx.random.uniform(shape=weight.shape, dtype=weight.dtype)
 
-def load(path_or_hf_repo: str):
+
+def load(path_or_hf_repo: str, noise=True):
     # If the path exists, it will try to load model form it
     # otherwise download and cache from the hf_repo and cache
     model_path = Path(path_or_hf_repo)
@@ -254,6 +259,9 @@ def load(path_or_hf_repo: str):
         nn.QuantizedLinear.quantize_module(model, **quantization)
 
     model.load_weights(list(weights.items()))
+    
+    if noise:
+        add_noise(model)
 
     mx.eval(model.parameters())
     tokenizer = AutoTokenizer.from_pretrained(
